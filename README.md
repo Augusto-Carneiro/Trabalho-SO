@@ -1,6 +1,2 @@
 # Trabalho-SO
-aaaaa
-asdfsadf
-alalallalalla
-blablal
-asdasfcdf
+Boa sorte pra mim.
