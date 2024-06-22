@@ -1,12 +1,10 @@
 #include<stdio.h>
 #include <stdlib.h>
+#include<math.h>
+
+int* ler_matriz(const char* nome_arquivo, int n);
 
 int main(int argc, char* argv[]){
-    if(argc != 8){
-        printf("A linha de comando foi digitada errada!\n"); //Verificação se o comando no terminal está correto.
-        return 1;
-    }
-
     int T = atoi(argv[1]); // Peguei o número de threads 
     int n = atoi(argv[2]); // Peguei o número de linhas e colunas 
 
@@ -17,3 +15,35 @@ int main(int argc, char* argv[]){
     return 0;
 }
 
+int* ler_matriz(const char* nome_arquivo, int n) {
+    FILE *arquivo;
+    int *matriz;
+    int i, j;
+
+    arquivo = fopen(nome_arquivo, "r"); // Abre o arquivo para leitura
+    if (arquivo == NULL) {
+        printf("Erro ao abrir o arquivo %s\n", nome_arquivo);
+        return NULL;
+    }
+
+    matriz = (int*) malloc(pow(n,2) * sizeof(int)); // Aloca memória para a matriz em uma única chamada, conforme pedido.
+    if (matriz == NULL) {
+        printf("Erro ao alocar memória para a matriz do arquivo %s\n", nome_arquivo);
+        fclose(arquivo);
+        return NULL;
+    }
+
+    for (i = 0; i < n; i++) {
+        for (j = 0; j < n; j++) {
+            if (fscanf(arquivo, "%d", &matriz[i * n + j]) != 1) { // Lê os valores da matriz do arquivo
+                printf("Erro ao ler dados do arquivo\n");
+                free(matriz);
+                fclose(arquivo);
+                return NULL;
+            }
+        }
+    }
+    fclose(arquivo);
+
+    return matriz;
+}
