@@ -1,30 +1,28 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <math.h>
-#include <pthread.h>
-#include <time.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<pthread.h>
+#include<string.h>
+#include<math.h>
+#include<sys/time.h>
 
-int tam_matriz; //Variáveis globais para ajudar nos parâmetros.
+int tam_matriz;  //Variáveis globais para ajudar nos parâmetros.
 int num_threads;
 int reducao = 0;
 int *A, *B, *C, *D, *E;
 
 void inicializar_variavel_global(char* nome_variavel, int valor); //Protótipos das funções.
 int* alocar_matriz();
-int ler_elementos_matriz(FILE* doc, int *matriz, const char *arquivo);
 void* ler_matriz_threads(void* nome_arquivo);
-void Salvar_Matriz(const char* nome_arquivo, int *matriz);
+int ler_elementos_matriz(FILE* doc, int *matriz, const char *arquivo);
+void Salvar_Matriz(const char* nome_arquivo, int* matriz);
 void* salvar_matrizD_thread(void* nome_arquivo);
 void* salvar_matrizE_thread(void* nome_arquivo);
 void* somar_matriz(void* arg);
 void* multiplicar_matriz(void* arg);
-void imprimir_matriz(const char* nome, int* matriz);
 void* Reducao_matriz(void* arg);
-double calcular_tempo(clock_t inicio, clock_t fim);
+double calcular_tempo(struct timeval inicio, struct timeval fim);
 
-
-int main(int argc, char *argv[]){
+int main(int argc, char* argv[]){
 
     int T = atoi(argv[1]); // Número de threads de processamento.
     int n = atoi(argv[2]); // Número de linhas e colunas das matrizes.
@@ -34,96 +32,95 @@ int main(int argc, char *argv[]){
     const char *arqD = argv[6];
     const char *arqE = argv[7];
 
-    clock_t inicio_total = clock();
-
     inicializar_variavel_global("tam_matriz", n); //Criei 3 váriaveis globais para facilitar o uso de certas informações.
     inicializar_variavel_global("num_threads", T);
 
-    D = alocar_matriz(); //Alocaçao da mémoria para as matrizes que serão geradas.
+    D = alocar_matriz(); //Alocaçao da mémoria para as matrizes que serão geradas
     E = alocar_matriz();
 
-    //printf("%d %d \n", n, T);
-
-    pthread_t threadA, threadB, threadC, threadD, threadE, threadReducao, threads[num_threads];
+    pthread_t threadA, threadB, threadC, threadD, threadE, threadReducao, threads[num_threads]; //Threads criadas para ajudar na distinção de cada etapa.
     int i, controle_thread[num_threads];
 
-    //Passo 1
-    pthread_create(&threadA, NULL, ler_matriz_threads, (void*) arqA); //Leitura da matriz A por thread
-    pthread_create(&threadB, NULL, ler_matriz_threads, (void*) arqB); //Leitura da matriz B por thread
+    struct timeval inicio_total, fim_total;
+    gettimeofday(&inicio_total, NULL);
 
-    pthread_join(threadA, (void**)&A);
-    pthread_join(threadB, (void**)&B); //Esperando as 2 finalizarem 
+    //Passo 1
+    pthread_create(&threadA, NULL, ler_matriz_threads, (void *)arqA); //Leitura da matriz A por thread
+    pthread_create(&threadB, NULL, ler_matriz_threads, (void *)arqB); //Leitura da matriz B por thread
+
+    pthread_join(threadA, (void** )&A);
+    pthread_join(threadB, (void** )&B);  //Esperando as 2 finalizarem 
 
     //imprimir_matriz("Matriz A", A);
     //imprimir_matriz("Matriz B", B);     
 
-    clock_t inicio_soma = clock();
+    struct timeval inicio_soma, fim_soma;
+
+    gettimeofday(&inicio_soma, NULL); //inicia a contagem do tempo para soma.
 
     //Passo 2
-    for(i = 0; i < num_threads; i++){
+    for(i = 0; i < num_threads; i++){ //Faz a soma criando um array para as threads.
         controle_thread[i] = i;
         pthread_create(&threads[i], NULL, somar_matriz, &controle_thread[i]);
     }
 
-    for(i = 0; i < num_threads; i++){  // Esperar que todas as threads terminem
+    for(i = 0; i < num_threads; i++){ // Esperar que todas as threads terminem.
         pthread_join(threads[i], NULL);
     }
 
-    clock_t fim_soma = clock(); //Fecha o tempo da Soma
-    double tempo_soma = calcular_tempo(inicio_soma, fim_soma);
+    gettimeofday(&fim_soma, NULL); // Acaba o tempo da soma.
+    double tempo_soma = calcular_tempo(inicio_soma, fim_soma); //Calcula o tempo da soma.
 
     //imprimir_matriz("Matriz D:", D);
 
     //Passo 3 e 4
-    pthread_create(&threadC, NULL, ler_matriz_threads, (void*) arqC);
-    pthread_create(&threadD, NULL, salvar_matrizD_thread, (void*) arqD);
+    pthread_create(&threadC, NULL, ler_matriz_threads, (void* )arqC); // 1 thread para cada etapa.
+    pthread_create(&threadD, NULL, salvar_matrizD_thread, (void* )arqD);
 
-    pthread_join(threadC, (void**)&C); // Esperar a leitura da matriz C e salvar a matriz D
+    pthread_join(threadC, (void** )&C); // Esperar a leitura da matriz C e salvar a matriz D.
     pthread_join(threadD, NULL);
 
     //imprimir_matriz("Matriz C:", C);
 
-    clock_t inicio_multiplicacao = clock(); //Inicio da contagem do tempo para a multiplicação.
+    struct timeval inicio_multiplicacao, fim_multiplicacao;
+    gettimeofday(&inicio_multiplicacao, NULL); //inicia o tempo de multiplicação.
 
     //Passo 5
-    for(i = 0; i < num_threads; i++){
+    for(i = 0; i < num_threads; i++){ //Faz a multiplicação criando um array para as threads.
         controle_thread[i] = i;
         pthread_create(&threads[i], NULL, multiplicar_matriz, &controle_thread[i]);
     }
-
+ 
     for(i = 0; i < num_threads; i++){ // Esperar que todas as threads terminem
         pthread_join(threads[i], NULL);
     }
 
-    clock_t fim_multiplicacao = clock(); //Fim da contagem do tempo para a multiplicação.
-    double tempo_multiplicacao = calcular_tempo(inicio_multiplicacao, fim_multiplicacao);
+    gettimeofday(&fim_multiplicacao, NULL); //Finaliza o tempo da multiplicação.
+    double tempo_multiplicacao = calcular_tempo(inicio_multiplicacao, fim_multiplicacao); //Calcula o tempo da multiplicação.
 
-    //imprimir_matriz("Matriz E:", E);
-
-    clock_t inicio_reducao = clock(); //Inicio da contagem do tempo para a redução.
+    struct timeval inicio_reducao, fim_reducao;
+    gettimeofday(&inicio_reducao, NULL); //inicia o tempo da redução.
 
     //Passo 6 e 7
-    pthread_create(&threadE, NULL, salvar_matrizE_thread, (void*) arqE);
+    pthread_create(&threadE, NULL, salvar_matrizE_thread, (void *)arqE); //Usa 1 thread para salvar a matriz E e T threads(na função) na redução.
     pthread_create(&threadReducao, NULL, Reducao_matriz, NULL);
 
-    pthread_join(threadE, NULL);
-    pthread_join(threadReducao, NULL); // Esperar que todas as threads terminem
+    pthread_join(threadE, NULL); //Espera ambos acabarem
+    pthread_join(threadReducao, NULL);
 
-    clock_t fim_reducao = clock(); //Fim da contagem do tempo para a redução.
+    gettimeofday(&fim_reducao, NULL); //Finaliza o tempo da redução.
     double tempo_reducao = calcular_tempo(inicio_reducao, fim_reducao);
 
-    //printf("%d\n", reducao);
-
-    free(A); //Liberar a memória alocada.
+    free(A);  //Liberar a memória alocada.
     free(B);
     free(C);
     free(D);
     free(E);
 
-    clock_t fim_total = clock(); //Fim da contagem total do tempo.
-    double tempo_total = calcular_tempo(inicio_total, fim_total);
+    gettimeofday(&fim_total, NULL); //Pega o tempo do fim do programa.
+    double tempo_total = calcular_tempo(inicio_total, fim_total); //Calculo do tempo total.
 
-    printf("Redução: %d\n", reducao); //Prints conforme a tarefa
+    printf("Redução: %d\n", reducao); //Prints conforme pedido.
     printf("Tempo soma: %.3lf segundos.\n", tempo_soma);
     printf("Tempo multiplicação: %.3lf segundos.\n", tempo_multiplicacao);
     printf("Tempo redução: %.3lf segundos.\n", tempo_reducao);
@@ -302,6 +299,6 @@ void* Reducao_matriz(void* arg){ //Semelhante as outras (somar e multiplicar).
     pthread_exit(NULL);
 }
 
-double calcular_tempo(clock_t inicio, clock_t fim){ //Função para fazer a diferença dos tempos.
-    return ((double)(fim - inicio)) / CLOCKS_PER_SEC; 
+double calcular_tempo(struct timeval inicio, struct timeval fim){ //Mudei a forma de pegar os horários pq estava bugando o tempo, a função pegava quase o dobro do tempo passado.
+    return (double)(fim.tv_sec - inicio.tv_sec) + (double)(fim.tv_usec - inicio.tv_usec) / 1000000.0;
 }
